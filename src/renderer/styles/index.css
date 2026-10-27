@@ -1,0 +1,283 @@
+:root {
+  --hs-bg: #f4f6fb;
+  --hs-panel: #ffffff;
+  --hs-panel-soft: #f8fafd;
+  --hs-border: #e5e9f2;
+  --hs-border-strong: #d5dbe8;
+  --hs-text: #17203a;
+  --hs-text-secondary: #64708a;
+  --hs-text-muted: #8b95ab;
+  --hs-accent: #4f7cff;
+  --hs-accent-soft: rgba(79, 124, 255, 0.1);
+  --hs-success: #16a34a;
+  --hs-success-soft: rgba(22, 163, 74, 0.1);
+  --hs-danger: #dc2626;
+  --hs-warning: #d97706;
+  --hs-sidebar: #101a30;
+  --hs-sidebar-hover: rgba(255, 255, 255, 0.07);
+  --hs-sidebar-active: rgba(79, 124, 255, 0.18);
+  --hs-shadow: 0 1px 2px rgba(16, 26, 48, 0.04), 0 8px 24px rgba(16, 26, 48, 0.04);
+
+  --el-color-primary: #4f7cff;
+  --el-color-primary-light-3: #7c9dff;
+  --el-color-primary-light-5: #a5bcff;
+  --el-color-primary-light-7: #cdd9ff;
+  --el-color-primary-light-8: #dfe7ff;
+  --el-color-primary-light-9: #eff3ff;
+  --el-color-primary-dark-2: #3f63cc;
+  --el-border-radius-base: 8px;
+  --el-border-color: #e5e9f2;
+  --el-border-color-light: #eaeef6;
+  --el-text-color-primary: #17203a;
+  --el-text-color-regular: #4a556d;
+  --el-fill-color-blank: #ffffff;
+}
+
+html.dark {
+  --hs-bg: #0b1120;
+  --hs-panel: #121a2b;
+  --hs-panel-soft: #162035;
+  --hs-border: #233049;
+  --hs-border-strong: #2c3a56;
+  --hs-text: #e7ecf7;
+  --hs-text-secondary: #98a5bd;
+  --hs-text-muted: #74819a;
+  --hs-accent: #6b8fff;
+  --hs-accent-soft: rgba(107, 143, 255, 0.14);
+  --hs-success: #34d399;
+  --hs-success-soft: rgba(52, 211, 153, 0.12);
+  --hs-danger: #f87171;
+  --hs-warning: #fbbf24;
+  --hs-sidebar: #070d1a;
+  --hs-sidebar-hover: rgba(255, 255, 255, 0.06);
+  --hs-sidebar-active: rgba(107, 143, 255, 0.2);
+  --hs-shadow: 0 1px 2px rgba(0, 0, 0, 0.3), 0 12px 30px rgba(0, 0, 0, 0.25);
+
+  --el-color-primary: #6b8fff;
+  --el-bg-color: #121a2b;
+  --el-bg-color-overlay: #162035;
+  --el-fill-color-blank: #121a2b;
+  --el-border-color: #233049;
+  --el-border-color-light: #1d2940;
+  --el-text-color-primary: #e7ecf7;
+  --el-text-color-regular: #c2cce0;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#app {
+  height: 100%;
+}
+
+body {
+  margin: 0;
+  background: var(--hs-bg);
+  color: var(--hs-text);
+  font-family:
+    'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Hiragino Sans GB',
+    'Microsoft YaHei', 'Helvetica Neue', Arial, sans-serif;
+  font-size: 14px;
+  -webkit-font-smoothing: antialiased;
+  transition: background-color 0.2s ease, color 0.2s ease;
+}
+
+a {
+  color: inherit;
+  text-decoration: none;
+}
+
+code,
+.mono {
+  font-family: 'JetBrains Mono', 'Cascadia Code', Consolas, 'Courier New', monospace;
+}
+
+::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--hs-border-strong);
+  border-radius: 999px;
+  border: 2px solid transparent;
+  background-clip: padding-box;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+/* 页面通用布局 */
+.page {
+  max-width: 1400px;
+  margin: 0 auto;
+  padding: 24px 28px 40px;
+  animation: page-in 0.25s ease;
+}
+
+@keyframes page-in {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.page-heading {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 18px;
+}
+
+.page-heading h2 {
+  margin: 0 0 6px;
+  font-size: 20px;
+  font-weight: 650;
+  letter-spacing: -0.2px;
+}
+
+.page-heading p {
+  margin: 0;
+  color: var(--hs-text-secondary);
+  font-size: 13px;
+}
+
+.toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  flex-wrap: wrap;
+  margin-bottom: 16px;
+}
+
+.toolbar-left,
+.toolbar-right {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.count-text {
+  color: var(--hs-text-secondary);
+  font-size: 13px;
+  white-space: nowrap;
+}
+
+.surface {
+  background: var(--hs-panel);
+  border: 1px solid var(--hs-border);
+  border-radius: 14px;
+  box-shadow: var(--hs-shadow);
+}
+
+.data-table {
+  /* 表格底色必须是不透明的：固定列使用 background: inherit 继承行背景，
+     若设为 transparent 会让固定列下方的单元格文字透出、造成重叠 */
+  --el-table-bg-color: var(--hs-panel);
+  --el-table-tr-bg-color: var(--hs-panel);
+  --el-table-expanded-cell-bg-color: var(--hs-panel);
+  --el-table-header-bg-color: var(--hs-panel-soft);
+  --el-table-row-hover-bg-color: var(--hs-panel-soft);
+  --el-table-border-color: var(--hs-border);
+  border-radius: 14px;
+  overflow: hidden;
+}
+
+.data-table .el-table__cell {
+  padding: 10px 0;
+}
+
+.data-table .el-table__header-wrapper th {
+  font-weight: 600;
+  color: var(--hs-text-secondary);
+}
+
+.hint {
+  margin-top: 6px;
+  font-size: 12px;
+  line-height: 1.6;
+  color: var(--hs-text-muted);
+}
+
+.muted {
+  color: var(--hs-text-secondary);
+}
+
+.status-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  font-weight: 500;
+  padding: 3px 10px;
+  border-radius: 999px;
+}
+
+.status-pill i {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  display: inline-block;
+}
+
+.status-pill.online {
+  color: var(--hs-success);
+  background: var(--hs-success-soft);
+}
+
+.status-pill.online i {
+  background: var(--hs-success);
+  box-shadow: 0 0 0 3px rgba(22, 163, 74, 0.12);
+}
+
+.status-pill.offline {
+  color: var(--hs-text-secondary);
+  background: var(--hs-panel-soft);
+}
+
+.status-pill.offline i {
+  background: var(--hs-text-muted);
+}
+
+.ip-chip {
+  display: inline-block;
+  padding: 1px 7px;
+  margin: 2px 4px 2px 0;
+  border-radius: 6px;
+  font-size: 12px;
+  font-family: 'JetBrains Mono', Consolas, monospace;
+  color: var(--hs-text-secondary);
+  background: var(--hs-panel-soft);
+  border: 1px solid var(--hs-border);
+}
+
+.el-button--primary {
+  --el-button-text-color: #fff;
+}
+
+.el-dialog {
+  border-radius: 14px;
+}
+
+.el-input__wrapper,
+.el-select__wrapper,
+.el-textarea__inner {
+  border-radius: 8px;
+}
+
+.el-card {
+  border-radius: 14px;
+  border-color: var(--hs-border);
+  background: var(--hs-panel);
+}

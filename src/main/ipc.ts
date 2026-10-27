@@ -1,0 +1,104 @@
+import { ipcMain } from 'electron'
+import { IPC_CHANNELS } from '../shared/types/ipc'
+import type {
+  ActionName,
+  ApiErrorInfo,
+  DesktopConfig,
+  IpcResult,
+  SaveConfigPayload
+} from '../shared/types/ipc'
+import { clearStoredConfig, getStoredConfig, saveStoredConfig } from './config'
+import { HeadscaleApiError } from './api/client'
+import * as headscale from './api/headscale'
+
+function toDesktopConfig(): DesktopConfig {
+  const { serverUrl, apiKey } = getStoredConfig()
+  return {
+    serverUrl,
+    hasApiKey: Boolean(apiKey)
+  }
+}
+
+function serializeError(error: unknown): ApiErrorInfo {
+  if (error instanceof HeadscaleApiError) {
+    return {
+      message: error.message,
+      status: error.status,
+      code: error.code
+    }
+  }
+  if (error instanceof Error) {
+    return { message: error.message }
+  }
+  return { message: '发生未知错误' }
+}
+
+/** 所有业务操作统一在这里分发，主进程是唯一发起 HTTP 请求的地方 */
+async function dispatch(action: ActionName, payload: any): Promise<unknown> {
+  switch (action) {
+    case 'connection.test':
+      return headscale.testConnection(payload ?? {})
+    case 'node.list':
+      return headscale.listNodes(payload ?? {})
+    case 'node.rename':
+      return headscale.renameNode(payload.id, payload.newName)
+    case 'node.delete':
+      return headscale.deleteNode(payload.id)
+    case 'node.expire':
+      return headscale.expireNode(payload.id)
+    case 'node.approveRoutes':
+      return headscale.approveNodeRoutes(payload.id, payload.routes)
+    case 'route.list':
+      return headscale.listRoutes()
+    case 'route.enable':
+      return headscale.enableRoute(payload.id)
+    case 'route.disable':
+      return headscale.disableRoute(payload.id)
+    case 'user.list':
+      return headscale.listUsers()
+    case 'user.create':
+      return headscale.createUser(payload.name)
+    case 'user.rename':
+      return headscale.renameUser(payload.name, payload.newName)
+    case 'user.delete':
+      return headscale.deleteUser(payload.name)
+    case 'preauthkey.list':
+      return headscale.listPreAuthKeys(payload.user)
+    case 'preauthkey.create':
+      return headscale.createPreAuthKey(payload)
+    case 'preauthkey.revoke':
+      return headscale.revokePreAuthKey(payload.user, payload.key)
+    default: {
+      const unknownAction: never = action
+      throw new Error(`不支持的操作：${String(unknownAction)}`)
+    }
+  }
+}
+
+export function registerIpcHandlers(): void {
+  ipcMain.handle(IPC_CHANNELS.configGetAll, (): DesktopConfig => toDesktopConfig())
+
+  ipcMain.handle(
+    IPC_CHANNELS.configSave,
+    (_event, payload: SaveConfigPayload): DesktopConfig => {
+      saveStoredConfig(payload)
+      return toDesktopConfig()
+    }
+  )
+
+  ipcMain.handle(IPC_CHANNELS.configClear, (): void => {
+    clearStoredConfig()
+  })
+
+  ipcMain.handle(
+    IPC_CHANNELS.invoke,
+    async (_event, action: ActionName, payload: unknown): Promise<IpcResult<unknown>> => {
+      try {
+        const data = await dispatch(action, payload)
+        return { ok: true, data }
+      } catch (error) {
+        return { ok: false, error: serializeError(error) }
+      }
+    }
+  )
+}
