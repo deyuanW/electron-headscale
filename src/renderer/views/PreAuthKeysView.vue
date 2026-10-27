@@ -208,22 +208,36 @@
         title="请立即复制保存：关闭本窗口后将无法再次查看完整密钥"
       />
 
+      <div class="key-head">
+        <span class="key-label">PREAUTH KEY</span>
+        <el-button link type="primary" @click="copyCreatedKey">
+          <el-icon><CopyDocument /></el-icon>
+          <span>复制密钥</span>
+        </el-button>
+      </div>
       <div class="key-box">
         <code>{{ createdKey }}</code>
       </div>
 
-      <div class="key-actions">
-        <el-button type="primary" @click="copyCreatedKey">
+      <div class="key-head command-head">
+        <span class="key-label">REGISTER COMMAND</span>
+        <el-button link type="primary" @click="copyCreatedCommand">
           <el-icon><CopyDocument /></el-icon>
-          <span>复制密钥</span>
+          <span>复制指令</span>
         </el-button>
+      </div>
+      <div class="command-box">
+        <code>{{ createdKeyCommand }}</code>
+      </div>
+
+      <div class="key-actions">
+        <span class="hint">在需要注册的节点上以管理员 / root 权限执行该指令。</span>
         <span v-if="createdKeyUser" class="muted">所属用户：{{ createdKeyUser }}</span>
       </div>
 
-      <div class="hint">
-        在节点上执行：
-        <code>tailscale up --login-server={{ connection.serverUrl || 'https://headscale.example.com' }} --authkey=&lt;密钥&gt;</code>
-      </div>
+      <template #footer>
+        <el-button type="primary" @click="createdKeyVisible = false">完成</el-button>
+      </template>
     </el-dialog>
   </div>
 </template>
@@ -255,6 +269,13 @@ const createdKeyVisible = ref(false)
 const createdKey = ref('')
 const createdKeyUser = ref('')
 
+/** 自动拼接节点注册指令，密钥与登录服务器均来自当前创建结果和已保存配置 */
+const createdKeyCommand = computed(() => {
+  if (!createdKey.value) return ''
+  const loginServer = connection.serverUrl || 'https://headscale.example.com'
+  return `tailscale up --login-server=${loginServer} --authkey=${createdKey.value}`
+})
+
 const form = reactive({
   user: '',
   reusable: false,
@@ -279,6 +300,11 @@ const filteredKeys = computed(() => {
   })
 })
 
+/** Headscale >= 0.28 的密钥接口使用数字用户 ID */
+const selectedUserId = computed(
+  () => usersStore.users.find((user) => user.name === selectedUser.value)?.id ?? ''
+)
+
 function disablePastDate(date: Date): boolean {
   return date.getTime() < Date.now() - 24 * 60 * 60 * 1000
 }
@@ -297,12 +323,12 @@ async function refresh(): Promise<void> {
   if (!connection.configured) return
   await Promise.all([
     usersStore.fetchUsers(),
-    keysStore.fetchKeys(selectedUser.value || undefined)
+    keysStore.fetchKeys(selectedUser.value || undefined, selectedUserId.value || undefined)
   ])
 }
 
 async function handleUserFilterChange(): Promise<void> {
-  await keysStore.fetchKeys(selectedUser.value || undefined)
+  await keysStore.fetchKeys(selectedUser.value || undefined, selectedUserId.value || undefined)
 }
 
 watch(
@@ -342,8 +368,10 @@ async function submitCreate(): Promise<void> {
 
   creating.value = true
   try {
+    const user = usersStore.users.find((item) => item.name === form.user)
     const created = await preAuthKeyApi.createPreAuthKey({
       user: form.user,
+      userId: user?.id,
       reusable: form.reusable,
       ephemeral: form.ephemeral,
       // Headscale 使用 RFC3339 时间字符串
@@ -367,15 +395,23 @@ async function submitCreate(): Promise<void> {
   }
 }
 
-async function copyCreatedKey(): Promise<void> {
-  if (!createdKey.value) return
+async function copyText(text: string, successMessage: string): Promise<void> {
+  if (!text) return
 
   try {
-    await navigator.clipboard.writeText(createdKey.value)
-    ElMessage.success('密钥已复制到剪贴板')
+    await navigator.clipboard.writeText(text)
+    ElMessage.success(successMessage)
   } catch {
-    ElMessage.warning('复制失败，请手动选中密钥复制')
+    ElMessage.warning('复制失败，请手动选中文本复制')
   }
+}
+
+async function copyCreatedKey(): Promise<void> {
+  await copyText(createdKey.value, '密钥已复制到剪贴板')
+}
+
+async function copyCreatedCommand(): Promise<void> {
+  await copyText(createdKeyCommand.value, '注册指令已复制到剪贴板')
 }
 
 async function revokeKey(key: PreAuthKey): Promise<void> {
@@ -402,13 +438,31 @@ async function revokeKey(key: PreAuthKey): Promise<void> {
 
   busyKey.value = key.key
   try {
-    const result = await preAuthKeyApi.revokePreAuthKey(userName, key.key)
+    const result = await preAuthKeyApi.revokePreAuthKey({
+      id: key.id,
+      key: key.key,
+      user: userName,
+      userId: key.user?.id || selectedUserId.value || undefined
+    })
+
+    await keysStore.fetchKeys(
+      selectedUser.value || undefined,
+      selectedUserId.value || undefined
+    )
+
     if (result.mode === 'deleted') {
-      ElMessage.success('密钥已删除')
+      // 某些版本对 DELETE 的 id 参数位置处理不同，接口可能返回成功但并未实际删除
+      const stillExists = keysStore.keys.some(
+        (item) => (key.id && item.id === key.id) || item.key === key.key
+      )
+      if (stillExists) {
+        ElMessage.warning('服务端返回成功，但密钥仍然存在，请检查 Headscale 版本兼容性')
+      } else {
+        ElMessage.success('密钥已删除')
+      }
     } else {
       ElMessage.warning('服务端不支持删除密钥，已将其置为过期')
     }
-    await keysStore.fetchKeys(selectedUser.value || undefined)
   } catch (error) {
     showApiError(error, '删除密钥失败')
   } finally {
@@ -457,8 +511,27 @@ async function revokeKey(key: PreAuthKey): Promise<void> {
   margin-top: 0;
 }
 
+.key-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-top: 18px;
+  margin-bottom: 6px;
+}
+
+.key-head.command-head {
+  margin-top: 16px;
+}
+
+.key-label {
+  font-size: 10px;
+  letter-spacing: 0.16em;
+  color: var(--hs-text-muted);
+  font-family: 'Cascadia Code', 'JetBrains Mono', Consolas, monospace;
+}
+
 .key-box {
-  margin: 18px 0 14px;
+  margin: 0;
   padding: 14px 16px;
   border-radius: 10px;
   border: 1px dashed var(--hs-accent);
@@ -472,11 +545,31 @@ async function revokeKey(key: PreAuthKey): Promise<void> {
   color: var(--hs-text);
 }
 
+.command-box {
+  padding: 12px 14px;
+  border-radius: 10px;
+  border: 1px solid var(--hs-border);
+  background: var(--hs-panel-soft);
+  word-break: break-all;
+}
+
+.command-box code {
+  font-size: 12.5px;
+  line-height: 1.7;
+  color: var(--hs-text);
+}
+
 .key-actions {
   display: flex;
   align-items: center;
-  gap: 14px;
-  margin-bottom: 8px;
+  justify-content: space-between;
+  gap: 12px;
+  margin-top: 16px;
+  flex-wrap: wrap;
+}
+
+.key-actions .hint {
+  margin-top: 0;
 }
 
 .empty-panel {

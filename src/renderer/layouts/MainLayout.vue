@@ -89,6 +89,7 @@ const router = useRouter()
 
 const navItems = [
   { name: 'nodes', label: '节点管理', icon: 'Monitor' },
+  { name: 'topology', label: '网络拓扑', icon: 'DataLine' },
   { name: 'routes', label: '路由管理', icon: 'Share' },
   { name: 'users', label: '用户管理', icon: 'User' },
   { name: 'preauthkeys', label: '预认证密钥', icon: 'Key' },

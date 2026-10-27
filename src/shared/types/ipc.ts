@@ -90,15 +90,15 @@ export interface ActionRegistry {
     result: HeadscaleUser | null
   }
   'user.rename': {
-    payload: { name: string; newName: string }
+    payload: { id: string; name: string; newName: string }
     result: HeadscaleUser | null
   }
   'user.delete': {
-    payload: { name: string }
+    payload: { id: string; name: string }
     result: null
   }
   'preauthkey.list': {
-    payload: { user?: string }
+    payload: { user?: string; userId?: string }
     result: PreAuthKeyListResult
   }
   'preauthkey.create': {
@@ -106,7 +106,7 @@ export interface ActionRegistry {
     result: PreAuthKey | null
   }
   'preauthkey.revoke': {
-    payload: { user: string; key: string }
+    payload: { id: string; key: string; user: string; userId?: string }
     result: PreAuthKeyRevokeResult
   }
 }

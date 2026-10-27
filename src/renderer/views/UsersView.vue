@@ -263,7 +263,7 @@ async function submitRename(): Promise<void> {
 
   renaming.value = true
   try {
-    await userApi.renameUser(user.name, newName)
+    await userApi.renameUser(user.id, user.name, newName)
     ElMessage.success('用户已重命名')
     renameDialog.visible = false
     await refresh()
@@ -292,7 +292,7 @@ async function removeUser(user: HeadscaleUser): Promise<void> {
 
   busyName.value = user.name
   try {
-    await userApi.deleteUser(user.name)
+    await userApi.deleteUser(user.id, user.name)
     ElMessage.success('用户已删除')
     await refresh()
   } catch (error) {

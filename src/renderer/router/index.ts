@@ -27,6 +27,12 @@ const routes: RouteRecordRaw[] = [
         meta: { title: '节点管理' }
       },
       {
+        path: 'topology',
+        name: 'topology',
+        component: () => import('@/views/TopologyView.vue'),
+        meta: { title: '网络拓扑' }
+      },
+      {
         path: 'routes',
         name: 'routes',
         component: () => import('@/views/RoutesView.vue'),

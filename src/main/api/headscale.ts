@@ -206,29 +206,90 @@ export async function createUser(name: string): Promise<HeadscaleUser | null> {
   return normalizeUser(extractResource(response.data, 'user'))
 }
 
-/** 重命名用户：路径使用「旧用户名」，而不是数字 ID */
-export async function renameUser(name: string, newName: string): Promise<HeadscaleUser | null> {
-  const { http } = getClient()
-  const response = await http.post(
-    `/user/${encodeURIComponent(name)}/rename/${encodeURIComponent(newName)}`
+/**
+ * Headscale 0.28 起 RenameUser / DeleteUser 的路径参数改为数字 ID，
+ * 更早的版本使用用户名。这里优先 ID，失败后再回退到用户名。
+ */
+function isIdentifierMismatch(error: unknown): boolean {
+  if (!(error instanceof HeadscaleApiError)) return false
+  if (error.status === 400 || error.status === 404 || error.status === 405) return true
+  return /type mismatch|ParseUint|invalid syntax|not found/i.test(error.message)
+}
+
+function userIdentifierAttempts(id: string, name: string): string[] {
+  return Array.from(
+    new Set([id, name].map((value) => value.trim()).filter((value) => value.length > 0))
   )
-  return normalizeUser(extractResource(response.data, 'user'))
 }
 
-export async function deleteUser(name: string): Promise<null> {
+/** 重命名用户：兼容 {old_id}（>=0.28）与 {old_name}（旧版）两种路径语义 */
+export async function renameUser(
+  id: string,
+  name: string,
+  newName: string
+): Promise<HeadscaleUser | null> {
   const { http } = getClient()
-  await http.delete(`/user/${encodeURIComponent(name)}`)
-  return null
+  let lastError: unknown
+
+  for (const identifier of userIdentifierAttempts(id, name)) {
+    try {
+      const response = await http.post(
+        `/user/${encodeURIComponent(identifier)}/rename/${encodeURIComponent(newName)}`
+      )
+      return normalizeUser(extractResource(response.data, 'user'))
+    } catch (error) {
+      lastError = error
+      if (!isIdentifierMismatch(error)) throw error
+    }
+  }
+
+  throw lastError instanceof Error ? lastError : new HeadscaleApiError('重命名用户失败')
 }
 
-/** 预认证密钥列表；user 为可选的用户名过滤条件 */
-export async function listPreAuthKeys(user?: string): Promise<PreAuthKeyListResult> {
+/** 删除用户：同上，优先数字 ID，旧版回退用户名 */
+export async function deleteUser(id: string, name: string): Promise<null> {
   const { http } = getClient()
-  const params: Record<string, string> = {}
-  if (user) params.user = user
+  let lastError: unknown
 
-  const response = await http.get('/preauthkey', { params })
-  const keys = extractList(response.data, 'preAuthKeys', 'pre_auth_keys').map(normalizePreAuthKey)
+  for (const identifier of userIdentifierAttempts(id, name)) {
+    try {
+      await http.delete(`/user/${encodeURIComponent(identifier)}`)
+      return null
+    } catch (error) {
+      lastError = error
+      if (!isIdentifierMismatch(error)) throw error
+    }
+  }
+
+  throw lastError instanceof Error ? lastError : new HeadscaleApiError('删除用户失败')
+}
+
+/**
+ * 预认证密钥列表。
+ * Headscale >= 0.28 的 ListPreAuthKeysRequest 不再接受 user 参数，
+ * 因此优先请求全量列表并在本地按用户过滤；旧版若要求 user 参数则回退重试。
+ */
+export async function listPreAuthKeys(
+  user?: string,
+  userId?: string
+): Promise<PreAuthKeyListResult> {
+  const { http } = getClient()
+  let response
+
+  try {
+    response = await http.get('/preauthkey')
+  } catch (error) {
+    if (!user || !isIdentifierMismatch(error)) throw error
+    response = await http.get('/preauthkey', { params: { user } })
+  }
+
+  let keys = extractList(response.data, 'preAuthKeys', 'pre_auth_keys').map(normalizePreAuthKey)
+
+  if (user) {
+    keys = keys.filter(
+      (key) => key.user?.name === user || (userId ? key.user?.id === userId : false)
+    )
+  }
 
   keys.sort((a, b) => (b.createdAt ?? '').localeCompare(a.createdAt ?? ''))
   return { keys }
@@ -236,42 +297,100 @@ export async function listPreAuthKeys(user?: string): Promise<PreAuthKeyListResu
 
 /**
  * 创建预认证密钥。
- *
- * TODO(headscale): CreatePreAuthKeyRequest.user 在部分版本中是用户名，老版本中是用户 ID；
- * 这里优先传用户名（v0.23+ 的常见行为），如果服务端要求 ID，可在 UI 层改为传 user.id。
+ * - Headscale >= 0.28：CreatePreAuthKeyRequest.user 是 uint64 用户 ID
+ * - Headscale < 0.28：user 是用户名字符串
+ * 因此先尝试数字 ID，400 时回退用户名。
  */
 export async function createPreAuthKey(input: CreatePreAuthKeyInput): Promise<PreAuthKey | null> {
   const { http } = getClient()
 
-  const payload: Record<string, unknown> = {
-    user: input.user,
+  const basePayload: Record<string, unknown> = {
     reusable: input.reusable,
     ephemeral: input.ephemeral
   }
-  if (input.expiration) payload.expiration = input.expiration
+  if (input.expiration) basePayload.expiration = input.expiration
 
-  const response = await http.post('/preauthkey', payload)
-  return normalizePreAuthKey(extractResource(response.data, 'preAuthKey'))
+  const numericUserId = Number(input.userId)
+  const attempts: Array<Record<string, unknown>> = []
+
+  if (input.userId && Number.isFinite(numericUserId) && numericUserId > 0) {
+    attempts.push({ ...basePayload, user: numericUserId })
+  }
+  attempts.push({ ...basePayload, user: input.user })
+
+  let lastError: unknown
+  for (const payload of attempts) {
+    try {
+      const response = await http.post('/preauthkey', payload)
+      return normalizePreAuthKey(extractResource(response.data, 'preAuthKey'))
+    } catch (error) {
+      lastError = error
+      if (!isIdentifierMismatch(error)) throw error
+    }
+  }
+
+  throw lastError instanceof Error ? lastError : new HeadscaleApiError('创建预认证密钥失败')
 }
 
 /**
- * 撤销（删除）预认证密钥。
- *
- * 官方稳定版 API 只提供 /preauthkey/expire，没有删除接口。
- * 因此先尝试 DELETE（新版本可能支持），404/405 时回退为「置为过期」，
- * 并在返回值中告知 UI 实际执行的是哪种语义。
+ * 撤销（删除）预认证密钥，兼容多个版本：
+ * - >= 0.28：DELETE /preauthkey 携带 { id }
+ * - 部分旧版：DELETE 携带 { user, key }，或只有 /preauthkey/expire
+ * 依次尝试，成功即返回；全部失败时抛出最后一个错误。
  */
-export async function revokePreAuthKey(user: string, key: string): Promise<PreAuthKeyRevokeResult> {
+export async function revokePreAuthKey(input: {
+  id: string
+  key: string
+  user: string
+  userId?: string
+}): Promise<PreAuthKeyRevokeResult> {
   const { http } = getClient()
 
-  try {
-    await http.delete('/preauthkey', { data: { user, key } })
-    return { mode: 'deleted' }
-  } catch (error) {
-    if (error instanceof HeadscaleApiError && (error.status === 404 || error.status === 405)) {
-      await http.post('/preauthkey/expire', { user, key })
-      return { mode: 'expired' }
-    }
-    throw error
+  const numericId = Number(input.id)
+  const hasId = input.id.length > 0 && Number.isFinite(numericId) && numericId > 0
+  let lastError: unknown
+
+  const deleteAttempts: Array<() => Promise<unknown>> = []
+  if (hasId) {
+    // Headscale >= 0.28 的 DeletePreAuthKey 没有 body 映射，id 必须放在 query 参数里；
+    // 若放在 JSON body 中会被忽略，服务端会删除 id=0 并返回成功（表现为「删除成功但没删掉」）。
+    deleteAttempts.push(() => http.delete('/preauthkey', { params: { id: numericId } }))
   }
+  if (input.user && input.key) {
+    deleteAttempts.push(() =>
+      http.delete('/preauthkey', { data: { user: input.user, key: input.key } })
+    )
+  }
+
+  for (const attempt of deleteAttempts) {
+    try {
+      await attempt()
+      return { mode: 'deleted' }
+    } catch (error) {
+      lastError = error
+      if (!isIdentifierMismatch(error)) throw error
+    }
+  }
+
+  const expireAttempts: Array<() => Promise<unknown>> = []
+  if (hasId) {
+    expireAttempts.push(() => http.post('/preauthkey/expire', { id: numericId }))
+  }
+  if (input.user && input.key) {
+    expireAttempts.push(() =>
+      http.post('/preauthkey/expire', { user: input.user, key: input.key })
+    )
+  }
+
+  for (const attempt of expireAttempts) {
+    try {
+      await attempt()
+      return { mode: 'expired' }
+    } catch (error) {
+      lastError = error
+      if (!isIdentifierMismatch(error)) throw error
+    }
+  }
+
+  throw lastError instanceof Error ? lastError : new HeadscaleApiError('删除预认证密钥失败')
 }

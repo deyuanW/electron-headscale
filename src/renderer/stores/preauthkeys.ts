@@ -8,12 +8,12 @@ export const usePreAuthKeysStore = defineStore('preauthkeys', () => {
   const loading = ref(false)
   const error = ref<string | null>(null)
 
-  async function fetchKeys(user?: string): Promise<boolean> {
+  async function fetchKeys(user?: string, userId?: string): Promise<boolean> {
     loading.value = true
     error.value = null
 
     try {
-      const result = await preAuthKeyApi.listPreAuthKeys(user)
+      const result = await preAuthKeyApi.listPreAuthKeys(user, userId)
       keys.value = result.keys
       return true
     } catch (cause) {

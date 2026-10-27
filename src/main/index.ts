@@ -60,33 +60,25 @@ function createWindow(): void {
   }
 }
 
-const gotSingleInstanceLock = app.requestSingleInstanceLock()
+/**
+ * 注意：这里没有使用 app.requestSingleInstanceLock()。
+ * 在 Windows 上强制结束进程或覆盖升级后，曾出现残留单实例锁导致应用启动即静默退出的问题；
+ * 本客户端允许多开，因此直接创建窗口，避免因锁状态异常无法启动。
+ */
+app.whenReady().then(() => {
+  app.setAppUserModelId('com.headscale.desktop')
 
-if (!gotSingleInstanceLock) {
-  app.quit()
-} else {
-  app.on('second-instance', () => {
-    if (mainWindow) {
-      if (mainWindow.isMinimized()) mainWindow.restore()
-      mainWindow.focus()
-    }
+  registerIpcHandlers()
+  buildApplicationMenu()
+  createWindow()
+
+  app.on('activate', () => {
+    if (BrowserWindow.getAllWindows().length === 0) createWindow()
   })
+})
 
-  app.whenReady().then(() => {
-    app.setAppUserModelId('com.headscale.desktop')
-
-    registerIpcHandlers()
-    buildApplicationMenu()
-    createWindow()
-
-    app.on('activate', () => {
-      if (BrowserWindow.getAllWindows().length === 0) createWindow()
-    })
-  })
-
-  app.on('window-all-closed', () => {
-    if (process.platform !== 'darwin') {
-      app.quit()
-    }
-  })
-}
+app.on('window-all-closed', () => {
+  if (process.platform !== 'darwin') {
+    app.quit()
+  }
+})

@@ -59,15 +59,15 @@ async function dispatch(action: ActionName, payload: any): Promise<unknown> {
     case 'user.create':
       return headscale.createUser(payload.name)
     case 'user.rename':
-      return headscale.renameUser(payload.name, payload.newName)
+      return headscale.renameUser(payload.id, payload.name, payload.newName)
     case 'user.delete':
-      return headscale.deleteUser(payload.name)
+      return headscale.deleteUser(payload.id, payload.name)
     case 'preauthkey.list':
-      return headscale.listPreAuthKeys(payload.user)
+      return headscale.listPreAuthKeys(payload.user, payload.userId)
     case 'preauthkey.create':
       return headscale.createPreAuthKey(payload)
     case 'preauthkey.revoke':
-      return headscale.revokePreAuthKey(payload.user, payload.key)
+      return headscale.revokePreAuthKey(payload)
     default: {
       const unknownAction: never = action
       throw new Error(`不支持的操作：${String(unknownAction)}`)

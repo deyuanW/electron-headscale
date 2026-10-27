@@ -101,8 +101,10 @@ export interface ConnectionTestResult {
 }
 
 export interface CreatePreAuthKeyInput {
-  /** 用户名（Headscale API 使用 user 名称或 ID，规范化层统一传名称） */
+  /** 用户名（Headscale < 0.28 使用用户名） */
   user: string
+  /** 用户数字 ID（Headscale >= 0.28 的 API 要求 uint64） */
+  userId?: string
   reusable: boolean
   ephemeral: boolean
   /** RFC3339 过期时间；不传则由服务端决定（通常为 1 小时） */
