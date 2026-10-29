@@ -115,3 +115,15 @@ export interface PreAuthKeyRevokeResult {
   /** deleted = 服务端支持删除；expired = 回退为「置为过期」 */
   mode: 'deleted' | 'expired'
 }
+
+/** Tailnet ACL 策略（HuJSON 文本） */
+export interface PolicyDocument {
+  policy: string
+  updatedAt: string | null
+  /** 服务端是否提供 /api/v1/policy 接口 */
+  supported: boolean
+}
+
+export interface PolicySaveResult {
+  updatedAt: string | null
+}

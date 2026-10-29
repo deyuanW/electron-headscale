@@ -5,6 +5,8 @@ import type {
   NodeListQuery,
   NodeListResult,
   NodeResource,
+  PolicyDocument,
+  PolicySaveResult,
   PreAuthKey,
   PreAuthKeyListResult,
   PreAuthKeyRevokeResult,
@@ -108,6 +110,14 @@ export interface ActionRegistry {
   'preauthkey.revoke': {
     payload: { id: string; key: string; user: string; userId?: string }
     result: PreAuthKeyRevokeResult
+  }
+  'policy.get': {
+    payload: Record<string, never>
+    result: PolicyDocument
+  }
+  'policy.set': {
+    payload: { policy: string }
+    result: PolicySaveResult
   }
 }
 

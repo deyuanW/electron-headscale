@@ -68,6 +68,10 @@ async function dispatch(action: ActionName, payload: any): Promise<unknown> {
       return headscale.createPreAuthKey(payload)
     case 'preauthkey.revoke':
       return headscale.revokePreAuthKey(payload)
+    case 'policy.get':
+      return headscale.getPolicy()
+    case 'policy.set':
+      return headscale.setPolicy(payload.policy)
     default: {
       const unknownAction: never = action
       throw new Error(`不支持的操作：${String(unknownAction)}`)

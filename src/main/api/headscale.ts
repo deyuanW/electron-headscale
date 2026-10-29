@@ -20,6 +20,8 @@ import type {
   NodeListQuery,
   NodeListResult,
   NodeResource,
+  PolicyDocument,
+  PolicySaveResult,
   PreAuthKey,
   PreAuthKeyListResult,
   PreAuthKeyRevokeResult,
@@ -393,4 +395,49 @@ export async function revokePreAuthKey(input: {
   }
 
   throw lastError instanceof Error ? lastError : new HeadscaleApiError('删除预认证密钥失败')
+}
+
+function readTimestamp(value: unknown): string | null {
+  if (typeof value !== 'string' || !value) return null
+  if (value.startsWith('0001-01-01') || value.startsWith('1970-01-01')) return null
+  return value
+}
+
+/**
+ * 获取 Tailnet ACL 策略（HuJSON 文本）。
+ * 旧版本没有 /api/v1/policy 接口时返回 supported=false，由 UI 做只读降级提示。
+ */
+export async function getPolicy(): Promise<PolicyDocument> {
+  const { http } = getClient()
+
+  try {
+    const response = await http.get('/policy')
+    const data =
+      typeof response.data === 'object' && response.data !== null
+        ? (response.data as Record<string, unknown>)
+        : {}
+
+    return {
+      policy: typeof data.policy === 'string' ? data.policy : '',
+      updatedAt: readTimestamp(data.updatedAt ?? data.updated_at),
+      supported: true
+    }
+  } catch (error) {
+    if (error instanceof HeadscaleApiError && (error.status === 404 || error.status === 405)) {
+      return { policy: '', updatedAt: null, supported: false }
+    }
+    throw error
+  }
+}
+
+/** 保存 ACL 策略（PUT /api/v1/policy），保存后立即对整个 Tailnet 生效 */
+export async function setPolicy(policy: string): Promise<PolicySaveResult> {
+  const { http } = getClient()
+  const response = await http.put('/policy', { policy })
+  const data =
+    typeof response.data === 'object' && response.data !== null
+      ? (response.data as Record<string, unknown>)
+      : {}
+
+  return { updatedAt: readTimestamp(data.updatedAt ?? data.updated_at) }
 }

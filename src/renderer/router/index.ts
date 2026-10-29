@@ -39,6 +39,12 @@ const routes: RouteRecordRaw[] = [
         meta: { title: '路由管理' }
       },
       {
+        path: 'policy',
+        name: 'policy',
+        component: () => import('@/views/PolicyView.vue'),
+        meta: { title: 'ACL 策略' }
+      },
+      {
         path: 'users',
         name: 'users',
         component: () => import('@/views/UsersView.vue'),
