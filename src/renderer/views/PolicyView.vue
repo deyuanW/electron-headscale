@@ -412,7 +412,9 @@
           >
             <el-option v-for="user in userOptions" :key="user" :label="user" :value="user" />
           </el-select>
-          <div class="hint">成员使用 Headscale 用户名，也允许手动输入。</div>
+          <div class="hint">
+            成员使用 Headscale 用户名，保存时会自动补全为 <code>用户名@</code> 格式。
+          </div>
         </el-form-item>
       </el-form>
       <template #footer>
@@ -785,7 +787,9 @@ const stats = computed(() => ({
   ssh: model.value.ssh.length
 }))
 
-const userOptions = computed(() => usersStore.users.map((user) => user.name))
+const userOptions = computed(() =>
+  usersStore.users.map((user) => normalizePolicyUser(user.name))
+)
 
 const ownerOptions = computed(() => {
   const values = [
@@ -875,6 +879,25 @@ function withPrefix(value: string, prefix: string): string {
   const trimmed = value.trim()
   if (!trimmed) return ''
   return trimmed.startsWith(prefix) ? trimmed : `${prefix}${trimmed}`
+}
+
+/**
+ * Headscale 策略中的本地用户引用必须以 @ 结尾（例如 deyuan@），
+ * 否则服务端会报 "username must contain @"。
+ */
+function normalizePolicyUser(value: string): string {
+  const trimmed = value.trim()
+  if (!trimmed) return ''
+  if (
+    trimmed === '*' ||
+    trimmed.startsWith('group:') ||
+    trimmed.startsWith('tag:') ||
+    trimmed.startsWith('autogroup:') ||
+    trimmed.includes('@')
+  ) {
+    return trimmed
+  }
+  return `${trimmed}@`
 }
 
 function prepareList(values: string[], label: string): string[] | null {
@@ -1083,13 +1106,19 @@ function serializePolicy(current: PolicyModel): Record<string, unknown> {
 
   if (current.groups.length) {
     result.groups = Object.fromEntries(
-      current.groups.map((group) => [group.name, group.members])
+      current.groups.map((group) => [
+        group.name,
+        group.members.map((member) => normalizePolicyUser(member))
+      ])
     )
   }
 
   if (current.tagOwners.length) {
     result.tagOwners = Object.fromEntries(
-      current.tagOwners.map((item) => [item.tag, item.owners])
+      current.tagOwners.map((item) => [
+        item.tag,
+        item.owners.map((owner) => normalizePolicyUser(owner))
+      ])
     )
   }
 
@@ -1103,7 +1132,7 @@ function serializePolicy(current: PolicyModel): Record<string, unknown> {
     result.acls = current.acls.map((rule) => ({
       ...rule.rest,
       action: rule.action,
-      src: rule.src,
+      src: rule.src.map((item) => normalizePolicyUser(item)),
       dst: rule.dst
     }))
   }
@@ -1111,7 +1140,10 @@ function serializePolicy(current: PolicyModel): Record<string, unknown> {
   const auto: Record<string, unknown> = { ...current.autoApproverExtra }
   if (current.autoApproverRoutes.length) {
     auto.routes = Object.fromEntries(
-      current.autoApproverRoutes.map((item) => [item.route, item.approvers])
+      current.autoApproverRoutes.map((item) => [
+        item.route,
+        item.approvers.map((approver) => normalizePolicyUser(approver))
+      ])
     )
   }
   if (Object.keys(auto).length) {
@@ -1122,7 +1154,7 @@ function serializePolicy(current: PolicyModel): Record<string, unknown> {
     result.ssh = current.ssh.map((rule) => ({
       ...rule.rest,
       action: rule.action,
-      src: rule.src,
+      src: rule.src.map((item) => normalizePolicyUser(item)),
       dst: rule.dst,
       users: rule.users
     }))
