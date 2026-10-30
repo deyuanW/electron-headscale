@@ -12,8 +12,14 @@ const routes: RouteRecordRaw[] = [
   {
     path: '/',
     component: MainLayout,
-    redirect: '/nodes',
+    redirect: '/overview',
     children: [
+      {
+        path: 'overview',
+        name: 'overview',
+        component: () => import('@/views/OverviewView.vue'),
+        meta: { title: '概览' }
+      },
       {
         path: 'connection',
         name: 'connection',
@@ -31,6 +37,12 @@ const routes: RouteRecordRaw[] = [
         name: 'topology',
         component: () => import('@/views/TopologyView.vue'),
         meta: { title: '网络拓扑' }
+      },
+      {
+        path: 'tailnet',
+        name: 'tailnet',
+        component: () => import('@/views/TailnetView.vue'),
+        meta: { title: '本机 Tailnet' }
       },
       {
         path: 'routes',
@@ -55,6 +67,12 @@ const routes: RouteRecordRaw[] = [
         name: 'preauthkeys',
         component: () => import('@/views/PreAuthKeysView.vue'),
         meta: { title: '预认证密钥' }
+      },
+      {
+        path: 'settings',
+        name: 'settings',
+        component: () => import('@/views/SettingsView.vue'),
+        meta: { title: '设置' }
       }
     ]
   },

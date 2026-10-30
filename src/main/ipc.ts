@@ -1,4 +1,4 @@
-import { ipcMain } from 'electron'
+import { BrowserWindow, ipcMain } from 'electron'
 import { IPC_CHANNELS } from '../shared/types/ipc'
 import type {
   ActionName,
@@ -7,9 +7,18 @@ import type {
   IpcResult,
   SaveConfigPayload
 } from '../shared/types/ipc'
+import type {
+  TailscaleSettingsInput,
+  TailscaleSettingsView,
+  TailscaleStatus
+} from '../shared/types/tailscale'
+import type { AppSettingsInput, AppSettingsView } from '../shared/types/settings'
 import { clearStoredConfig, getStoredConfig, saveStoredConfig } from './config'
 import { HeadscaleApiError } from './api/client'
 import * as headscale from './api/headscale'
+import { tailscaleManager } from './tailscale/manager'
+import { getTailscaleSettingsView, saveTailscaleSettings } from './tailscale/settings'
+import { getAppSettingsView, saveAppSettings } from './settings'
 
 function toDesktopConfig(): DesktopConfig {
   const { serverUrl, apiKey } = getStoredConfig()
@@ -80,6 +89,15 @@ async function dispatch(action: ActionName, payload: any): Promise<unknown> {
 }
 
 export function registerIpcHandlers(): void {
+  // 核心日志广播到所有窗口；页面离开后由渲染进程自行忽略
+  tailscaleManager.setLogSink((entry) => {
+    for (const window of BrowserWindow.getAllWindows()) {
+      if (!window.isDestroyed()) {
+        window.webContents.send(IPC_CHANNELS.tailscaleLogEvent, entry)
+      }
+    }
+  })
+
   ipcMain.handle(IPC_CHANNELS.configGetAll, (): DesktopConfig => toDesktopConfig())
 
   ipcMain.handle(
@@ -95,6 +113,16 @@ export function registerIpcHandlers(): void {
   })
 
   ipcMain.handle(
+    IPC_CHANNELS.appSettingsGet,
+    (): AppSettingsView => getAppSettingsView()
+  )
+
+  ipcMain.handle(
+    IPC_CHANNELS.appSettingsSave,
+    (_event, payload: AppSettingsInput): AppSettingsView => saveAppSettings(payload)
+  )
+
+  ipcMain.handle(
     IPC_CHANNELS.invoke,
     async (_event, action: ActionName, payload: unknown): Promise<IpcResult<unknown>> => {
       try {
@@ -105,4 +133,37 @@ export function registerIpcHandlers(): void {
       }
     }
   )
+
+  ipcMain.handle(
+    IPC_CHANNELS.tailscaleGetSettings,
+    (): TailscaleSettingsView => getTailscaleSettingsView()
+  )
+
+  ipcMain.handle(
+    IPC_CHANNELS.tailscaleSaveSettings,
+    (_event, payload: TailscaleSettingsInput): TailscaleSettingsView =>
+      saveTailscaleSettings(payload)
+  )
+
+  ipcMain.handle(
+    IPC_CHANNELS.tailscaleStatus,
+    (): Promise<TailscaleStatus> => tailscaleManager.getStatus()
+  )
+
+  ipcMain.handle(
+    IPC_CHANNELS.tailscaleStart,
+    (): Promise<TailscaleStatus> => tailscaleManager.start()
+  )
+
+  ipcMain.handle(
+    IPC_CHANNELS.tailscaleStop,
+    (): Promise<TailscaleStatus> => tailscaleManager.stop()
+  )
+
+  ipcMain.handle(
+    IPC_CHANNELS.tailscaleReset,
+    (): Promise<TailscaleStatus> => tailscaleManager.resetIdentity()
+  )
+
+  ipcMain.handle(IPC_CHANNELS.tailscaleLogs, () => tailscaleManager.getLogs())
 }

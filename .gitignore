@@ -26,3 +26,11 @@ Thumbs.db
 
 # 构建缓存
 *.tsbuildinfo
+
+# 内置 Tailscale 核心二进制（npm run fetch:tailscale 获取，不提交仓库）
+resources/tailscale/win32-x64/*
+resources/tailscale/darwin-arm64/*
+resources/tailscale/darwin-x64/*
+resources/tailscale/linux-x64/*
+resources/tailscale/linux-arm64/*
+!resources/tailscale/darwin-x64/README.md

@@ -11,16 +11,60 @@
 
       <nav class="nav">
         <RouterLink
-          v-for="item in navItems"
-          :key="item.name"
-          :to="{ name: item.name }"
+          :to="{ name: overviewItem.name }"
           class="nav-item"
-          :title="item.label"
+          :title="overviewItem.label"
         >
-          <el-icon :size="18"><component :is="item.icon" /></el-icon>
-          <span v-if="!ui.sidebarCollapsed" class="nav-label">{{ item.label }}</span>
+          <el-icon :size="18"><component :is="overviewItem.icon" /></el-icon>
+          <span v-if="!ui.sidebarCollapsed" class="nav-label">{{ overviewItem.label }}</span>
         </RouterLink>
+
+        <div v-for="group in navGroups" :key="group.key" class="nav-group">
+          <button
+            type="button"
+            class="nav-group-toggle"
+            :class="{ 'is-active': groupActive(group) }"
+            :title="group.label"
+            :aria-expanded="openGroups[group.key]"
+            @click="toggleGroup(group.key)"
+          >
+            <el-icon :size="18"><component :is="group.icon" /></el-icon>
+            <template v-if="!ui.sidebarCollapsed">
+              <span class="nav-group-label">{{ group.label }}</span>
+              <el-icon
+                :size="13"
+                class="nav-group-chevron"
+                :class="{ open: openGroups[group.key] }"
+              >
+                <ArrowRight />
+              </el-icon>
+            </template>
+          </button>
+
+          <div
+            v-if="!ui.sidebarCollapsed && openGroups[group.key]"
+            class="nav-children"
+          >
+            <RouterLink
+              v-for="item in group.items"
+              :key="item.name"
+              :to="{ name: item.name }"
+              class="nav-item nav-child"
+              :title="item.label"
+            >
+              <el-icon :size="17"><component :is="item.icon" /></el-icon>
+              <span class="nav-label">{{ item.label }}</span>
+            </RouterLink>
+          </div>
+        </div>
       </nav>
+
+      <div class="nav-bottom">
+        <RouterLink :to="{ name: 'settings' }" class="nav-item" title="设置">
+          <el-icon :size="18"><Setting /></el-icon>
+          <span v-if="!ui.sidebarCollapsed" class="nav-label">设置</span>
+        </RouterLink>
+      </div>
 
       <div v-if="!ui.sidebarCollapsed" class="sidebar-footer">
         <span class="footer-dot" :class="{ online: connection.connected }"></span>
@@ -77,7 +121,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed } from 'vue'
+import { computed, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useUiStore } from '@/stores/ui'
 import { useConnectionStore } from '@/stores/connection'
@@ -87,15 +131,69 @@ const connection = useConnectionStore()
 const route = useRoute()
 const router = useRouter()
 
-const navItems = [
-  { name: 'nodes', label: '节点管理', icon: 'Monitor' },
-  { name: 'topology', label: '网络拓扑', icon: 'DataLine' },
-  { name: 'routes', label: '路由管理', icon: 'Share' },
-  { name: 'policy', label: 'ACL 策略', icon: 'Lock' },
-  { name: 'users', label: '用户管理', icon: 'User' },
-  { name: 'preauthkeys', label: '预认证密钥', icon: 'Key' },
-  { name: 'connection', label: '连接配置', icon: 'Connection' }
+interface NavItem {
+  name: string
+  label: string
+  icon: string
+}
+
+interface NavGroup {
+  key: 'headscale' | 'tailscale'
+  label: string
+  icon: string
+  items: NavItem[]
+}
+
+const overviewItem: NavItem = { name: 'overview', label: '概览', icon: 'Odometer' }
+
+const navGroups: NavGroup[] = [
+  {
+    key: 'headscale',
+    label: 'Headscale',
+    icon: 'Connection',
+    items: [
+      { name: 'nodes', label: '节点管理', icon: 'Monitor' },
+      { name: 'topology', label: '网络拓扑', icon: 'DataLine' },
+      { name: 'routes', label: '路由管理', icon: 'Share' },
+      { name: 'policy', label: 'ACL 策略', icon: 'Lock' },
+      { name: 'users', label: '用户管理', icon: 'User' },
+      { name: 'preauthkeys', label: '预认证密钥', icon: 'Key' },
+      { name: 'connection', label: '连接配置', icon: 'Setting' }
+    ]
+  },
+  {
+    key: 'tailscale',
+    label: 'Tailscale',
+    icon: 'Cpu',
+    items: [{ name: 'tailnet', label: '本机 Tailnet', icon: 'Cpu' }]
+  }
 ]
+
+const currentRouteName = computed(() => String(route.name ?? ''))
+
+function groupActive(group: NavGroup): boolean {
+  return group.items.some((item) => item.name === currentRouteName.value)
+}
+
+const openGroups = ref<Record<NavGroup['key'], boolean>>({ headscale: true, tailscale: true })
+
+function toggleGroup(key: NavGroup['key']): void {
+  if (ui.sidebarCollapsed) {
+    ui.toggleSidebar()
+    openGroups.value[key] = true
+    return
+  }
+
+  openGroups.value[key] = !openGroups.value[key]
+}
+
+watch(currentRouteName, (name) => {
+  for (const group of navGroups) {
+    if (group.items.some((item) => item.name === name)) {
+      openGroups.value[group.key] = true
+    }
+  }
+})
 
 const statusText = computed(() => {
   if (connection.testing) return '检测中'
@@ -188,6 +286,82 @@ const statusClass = computed(() => ({
   display: flex;
   flex-direction: column;
   gap: 4px;
+  overflow-y: auto;
+  overflow-x: hidden;
+}
+
+.nav-group {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.nav-group-toggle {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  height: 42px;
+  padding: 0 12px;
+  border: none;
+  border-radius: 9px;
+  background: transparent;
+  color: rgba(219, 228, 255, 0.62);
+  font-size: 13.5px;
+  font-family: inherit;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: background 0.15s ease, color 0.15s ease;
+}
+
+.nav-group-toggle:hover {
+  background: var(--hs-sidebar-hover);
+  color: #fff;
+}
+
+.nav-group-toggle.is-active {
+  color: #fff;
+}
+
+.nav-group-label {
+  flex: 1;
+  min-width: 0;
+  text-align: left;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.nav-group-chevron {
+  color: rgba(219, 228, 255, 0.45);
+  transition: transform 0.18s ease;
+}
+
+.nav-group-chevron.open {
+  transform: rotate(90deg);
+}
+
+.collapsed .nav-group-toggle {
+  justify-content: center;
+  padding: 0;
+}
+
+.collapsed .nav-group-toggle.is-active {
+  box-shadow: inset 0 0 0 1px rgba(107, 143, 255, 0.35);
+}
+
+.nav-children {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin: 2px 0 4px;
+  padding-left: 10px;
+  border-left: 1px solid rgba(255, 255, 255, 0.07);
+  margin-left: 21px;
+}
+
+.nav-child {
+  height: 38px;
+  font-size: 13px;
 }
 
 .nav-item {
@@ -222,6 +396,12 @@ const statusClass = computed(() => ({
 
 .collapsed .nav-item.router-link-active {
   box-shadow: inset 0 0 0 1px rgba(107, 143, 255, 0.35);
+}
+
+.nav-bottom {
+  flex-shrink: 0;
+  padding: 8px 12px 10px;
+  border-top: 1px solid rgba(255, 255, 255, 0.06);
 }
 
 .sidebar-footer {

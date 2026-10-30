@@ -40,6 +40,9 @@ jobs:
       - name: Type check & build
         run: npm run build
 
+      - name: Fetch Tailscale core
+        run: npm run fetch:tailscale
+
       - name: Package installers
         run: npx electron-builder --${{ matrix.target }} --publish never
 

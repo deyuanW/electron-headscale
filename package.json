@@ -13,9 +13,11 @@
     "typecheck": "npm run typecheck:node && npm run typecheck:web",
     "typecheck:node": "tsc --noEmit -p tsconfig.node.json --composite false",
     "typecheck:web": "vue-tsc --noEmit -p tsconfig.web.json --composite false",
-    "build:unpack": "npm run build && electron-builder --dir",
-    "build:win": "npm run build && electron-builder --win",
-    "build:mac": "npm run build && electron-builder --mac"
+    "fetch:tailscale": "node scripts/fetch-tailscale.mjs",
+    "build:unpack": "npm run build && npm run fetch:tailscale && electron-builder --dir",
+    "build:win": "npm run build && npm run fetch:tailscale && electron-builder --win",
+    "build:mac": "npm run build && npm run fetch:tailscale && electron-builder --mac",
+    "build:linux": "npm run build && npm run fetch:tailscale && electron-builder --linux"
   },
   "dependencies": {
     "axios": "^1.7.9",
@@ -45,6 +47,7 @@
     },
     "files": [
       "out/**/*",
+      "resources/icon.png",
       "package.json"
     ],
     "asar": true,
@@ -57,7 +60,16 @@
           ]
         }
       ],
-      "artifactName": "${productName}-${version}-win-${arch}.${ext}"
+      "artifactName": "${productName}-${version}-win-${arch}.${ext}",
+      "extraResources": [
+        {
+          "from": "resources/tailscale/win32-x64",
+          "to": "tailscale/win32-x64",
+          "filter": [
+            "**/*"
+          ]
+        }
+      ]
     },
     "nsis": {
       "oneClick": false,
@@ -76,14 +88,46 @@
         }
       ],
       "category": "public.app-category.utilities",
-      "artifactName": "${productName}-${version}-mac-${arch}.${ext}"
+      "artifactName": "${productName}-${version}-mac-${arch}.${ext}",
+      "extraResources": [
+        {
+          "from": "resources/tailscale/darwin-x64",
+          "to": "tailscale/darwin-x64",
+          "filter": [
+            "**/*"
+          ]
+        },
+        {
+          "from": "resources/tailscale/darwin-arm64",
+          "to": "tailscale/darwin-arm64",
+          "filter": [
+            "**/*"
+          ]
+        }
+      ]
     },
     "linux": {
       "target": [
         "AppImage"
       ],
       "category": "Network",
-      "artifactName": "${productName}-${version}-linux-${arch}.${ext}"
+      "artifactName": "${productName}-${version}-linux-${arch}.${ext}",
+      "extraResources": [
+        {
+          "from": "resources/tailscale/linux-x64",
+          "to": "tailscale/linux-x64",
+          "filter": [
+            "**/*"
+          ]
+        },
+        {
+          "from": "resources/tailscale/linux-arm64",
+          "to": "tailscale/linux-arm64",
+          "filter": [
+            "**/*"
+          ]
+        }
+      ]
     }
   }
 }

@@ -6,9 +6,11 @@
 
 ## 功能
 
+- **概览**：汇总 Headscale 控制面状态、版本、延迟，节点在线率、用户与路由统计，内置 Tailscale 核心状态和快捷入口
 - **连接配置**：服务器地址 + API Key，支持「测试连接」、持久化保存与一键清除
 - **节点管理**：列表 / 搜索 / 在线状态筛选，重命名、过期、删除节点；展开查看通告路由并逐条批准、禁用
 - **网络拓扑**：以关系图展示控制面与节点的连接、在线状态、用户分组和节点间逻辑互连，支持缩放、拖拽与详情面板
+- **本机 Tailnet**：内置官方 Tailscale 核心，不启动官方 UI；支持用户态（免管理员，SOCKS5 代理）与系统 TUN 两种模式，可在应用内配置、启动、停止并查看状态与日志
 - **路由管理**：汇总所有节点的子网路由，批准 / 禁用，显示通告状态与主路由标记
 - **ACL 策略**：图形化维护用户组、标签、主机、ACL / SSH 规则与自动批准；支持查看、复制、下载策略文件，保存后立即生效
 - **用户管理**：创建、重命名、删除用户，展示用户名下节点数量
@@ -39,6 +41,9 @@ npm run typecheck
 
 # 4. 构建渲染进程与主进程产物（out/）
 npm run build
+
+# 5. 下载随包分发的 Tailscale 核心（首次或打包前执行）
+npm run fetch:tailscale
 ```
 
 > 若 `npm install` 卡在下载 Electron 二进制，可使用镜像后重试：
@@ -57,9 +62,14 @@ npm run build:win
 # macOS dmg（需要在 macOS 上执行）
 npm run build:mac
 
+# Linux AppImage（需要在 Linux 上执行）
+npm run build:linux
+
 # 仅生成未打包目录，便于本地验证
 npm run build:unpack
 ```
+
+打包脚本会自动执行 `fetch:tailscale`，只把当前平台的 Tailscale 核心复制到安装包的 `resources/tailscale` 下。
 
 打包后的 Windows 安装程序位于 `release/`，安装后可双击桌面快捷方式运行。
 
@@ -88,6 +98,34 @@ npm run build:unpack
 
    渲染进程永远拿不到明文 Key，只显示「已保存 / 未配置」。
 
+## 内置 Tailscale 核心
+
+「本机 Tailnet」页面会把当前设备作为节点接入 Headscale，不需要安装或打开官方 Tailscale 托盘程序。
+
+### 两种运行模式
+
+| 模式 | 权限 | 能力 |
+| --- | --- | --- |
+| 用户态（默认） | 不需要管理员 | 提供本地 SOCKS5 代理（默认 `127.0.0.1:1055`），适合让浏览器 / 应用通过代理访问 Tailnet；不接管系统流量 |
+| 系统 TUN | Windows 管理员 / macOS、Linux root | 创建虚拟网卡并接管路由，支持入站、Tailscale SSH、子网路由与出口节点 |
+
+### 使用步骤
+
+1. 在「预认证密钥」页面创建一个密钥，或留空密钥使用交互式登录；
+2. 打开「本机 Tailnet」，控制面地址默认复用「连接配置」中的服务器地址；
+3. 选择运行模式，填写主机名（可留空）和预认证密钥；
+4. 点击「启动核心」，启动后可在右侧查看状态、Tailscale IP 和节点列表；
+5. 用户态模式下，把应用的代理设置为页面显示的 `socks5://127.0.0.1:<端口>`。
+
+### 说明
+
+- 核心使用独立的 state 与 socket，不会启动官方 UI，也不会修改官方 Tailscale 服务的配置；
+- **不要**与已安装的 Tailscale 服务同时使用系统 TUN，避免虚拟网卡 / 路由冲突；
+- 认证密钥保存在主进程的用户目录配置中，不会通过 IPC 回传渲染进程；
+- Windows 不支持作为 Tailscale SSH 服务端；macOS 的系统 TUN 模式仍受签名、网络权限与系统版本影响；
+- 核心二进制默认不提交仓库，通过 `npm run fetch:tailscale` 获取（Tailscale 1.104.4，BSD-3-Clause，许可证见 `resources/tailscale/LICENSE`）；
+- macOS Intel 官方没有独立 CLI 包，脚本会优先复制本机已安装的 CLI，否则在运行时回退到系统 Tailscale。
+
 ## 项目结构
 
 ```
@@ -101,6 +139,9 @@ electron-headscale/
 │   │   ├── menu.ts                # 原生菜单
 │   │   ├── config.ts              # electron-store 读写
 │   │   ├── ipc.ts                 # IPC 注册与操作分发
+│   │   ├── tailscale/             # 内置 Tailscale 核心管理
+│   │   │   ├── manager.ts         # 进程、状态、日志、启停
+│   │   │   └── settings.ts        # 核心配置与密钥存储
 │   │   ├── api/
 │   │   │   ├── client.ts          # axios 统一封装（baseURL / 认证头 / 超时 / 错误）
 │   │   │   ├── headscale.ts       # 节点、路由、用户、密钥业务接口
@@ -110,17 +151,20 @@ electron-headscale/
 │   │   └── index.ts               # contextBridge 暴露最小 API
 │   ├── shared/types/              # 集中类型定义
 │   │   ├── headscale.ts           # 领域模型
+│   │   ├── tailscale.ts           # 内置核心类型
 │   │   └── ipc.ts                 # IPC 通道与操作注册表
 │   └── renderer/                  # 渲染进程（Vue 3）
 │       ├── index.html
 │       ├── main.ts / App.vue
 │       ├── router/index.ts
 │       ├── api/                   # 渲染进程 API 层（统一 invoke 封装）
-│       ├── stores/                # Pinia：连接、节点、路由、用户、密钥、UI
+│       ├── stores/                # Pinia：连接、节点、路由、用户、密钥、核心、UI
 │       ├── layouts/MainLayout.vue
-│       ├── views/                 # 5 个页面
+│       ├── views/                 # 9 个页面（概览、节点、拓扑、Tailnet 等）
 │       ├── utils/                 # 格式化、统一消息
 │       └── styles/index.css       # 主题变量与全局样式
+├── resources/tailscale/           # 内置核心二进制（fetch 脚本生成）
+├── scripts/fetch-tailscale.mjs    # 下载/整理官方核心
 └── README.md
 ```
 

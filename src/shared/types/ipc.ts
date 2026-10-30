@@ -12,13 +12,30 @@ import type {
   PreAuthKeyRevokeResult,
   RouteListResult
 } from './headscale'
+import type {
+  TailscaleLogEntry,
+  TailscaleSettingsInput,
+  TailscaleSettingsView,
+  TailscaleStatus
+} from './tailscale'
+import type { AppSettingsInput, AppSettingsView } from './settings'
 
 /** IPC 通道名集中定义，避免主进程与 preload 出现字符串漂移 */
 export const IPC_CHANNELS = {
   configGetAll: 'config:get-all',
   configSave: 'config:save',
   configClear: 'config:clear',
-  invoke: 'headscale:invoke'
+  invoke: 'headscale:invoke',
+  appSettingsGet: 'app:settings-get',
+  appSettingsSave: 'app:settings-save',
+  tailscaleGetSettings: 'tailscale:get-settings',
+  tailscaleSaveSettings: 'tailscale:save-settings',
+  tailscaleStatus: 'tailscale:status',
+  tailscaleStart: 'tailscale:start',
+  tailscaleStop: 'tailscale:stop',
+  tailscaleReset: 'tailscale:reset',
+  tailscaleLogs: 'tailscale:logs',
+  tailscaleLogEvent: 'tailscale:log-event'
 } as const
 
 export interface DesktopConfig {
@@ -136,4 +153,20 @@ export interface DesktopApi {
     action: A,
     payload: ActionPayload<A>
   ) => Promise<IpcResult<ActionResult<A>>>
+  settings: {
+    get: () => Promise<AppSettingsView>
+    save: (payload: AppSettingsInput) => Promise<AppSettingsView>
+  }
+  tailscale: {
+    getSettings: () => Promise<TailscaleSettingsView>
+    saveSettings: (payload: TailscaleSettingsInput) => Promise<TailscaleSettingsView>
+    status: () => Promise<TailscaleStatus>
+    start: () => Promise<TailscaleStatus>
+    stop: () => Promise<TailscaleStatus>
+    /** 退出登录并清除本地状态缓存 */
+    reset: () => Promise<TailscaleStatus>
+    logs: () => Promise<TailscaleLogEntry[]>
+    /** 订阅核心日志，返回取消订阅函数 */
+    onLog: (listener: (entry: TailscaleLogEntry) => void) => () => void
+  }
 }
